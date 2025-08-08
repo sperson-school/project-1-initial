@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Java Code Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .container {
+            max-width: 900px;
+        }
+        textarea, pre {
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #1a73e8;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+<div class="container mx-auto bg-white p-8 rounded-2xl shadow-lg">
+    <h1 class="text-3xl font-bold text-gray-800 mb-4">AI Code Generator for Point Class</h1>
+    <p class="text-gray-600 mb-6">
+        Enter your prompt below to generate the Java code for the `Point` class. This tool uses the Gemini API to assist you in completing your assignment.
+    </p>
+
+    <div class="mb-6">
+        <label for="prompt-input" class="block text-sm font-medium text-gray-700 mb-2">AI Prompt:</label>
+        <textarea id="prompt-input" class="w-full h-32 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors" placeholder="e.g., 'Generate a Java class named Point with methods for x and y coordinates, distance, and rotation...'"></textarea>
+    </div>
+
+    <div class="flex items-center space-x-4 mb-6">
+        <button id="generate-btn" class="flex items-center justify-center bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500">
+            Generate Code
+        </button>
+        <div id="loading-spinner" class="spinner hidden"></div>
+    </div>
+
+    <div id="message-box" class="hidden p-4 rounded-lg text-sm mb-6"></div>
+
+    <div>
+        <label for="code-output" class="block text-sm font-medium text-gray-700 mb-2">Generated Code:</label>
+        <pre id="code-output" class="w-full p-4 border border-gray-300 bg-gray-50 rounded-lg overflow-x-auto text-gray-800 text-sm h-96 whitespace-pre-wrap"></pre>
+    </div>
+
+    <div class="mt-4 text-center">
+        <button id="copy-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400">
+            Copy Code to Clipboard
+        </button>
+    </div>
+
+</div>
+
+<script type="text/javascript">
+    document.addEventListener('DOMContentLoaded', () => {
+        const promptInput = document.getElementById('prompt-input');
+        const generateBtn = document.getElementById('generate-btn');
+        const codeOutput = document.getElementById('code-output');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const messageBox = document.getElementById('message-box');
+        const copyBtn = document.getElementById('copy-btn');
+
+        let isGenerating = false;
+
+        // Exponential backoff for API calls
+        const callGeminiWithBackoff = async (payload, retries = 5, delay = 1000) => {
+            try {
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    if (response.status === 429 && retries > 0) {
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        return callGeminiWithBackoff(payload, retries - 1, delay * 2);
+                    }
+                    const errorData = await response.json();
+                    throw new Error(`API Error: ${response.status} - ${errorData.error.message}`);
+                }
+                return response.json();
+            } catch (error) {
+                console.error('API call failed with error:', error);
+                return null;
+            }
+        };
+
+        const showMessage = (text, type = 'info') => {
+            messageBox.textContent = text;
+            messageBox.className = `p-4 rounded-lg text-sm mb-6 ${type === 'error' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`;
+            messageBox.style.display = 'block';
+        };
+
+        const generateCode = async () => {
+            if (isGenerating) return;
+            isGenerating = true;
+            generateBtn.disabled = true;
+            generateBtn.innerHTML = 'Generating...';
+            loadingSpinner.classList.remove('hidden');
+            codeOutput.textContent = '';
+            messageBox.style.display = 'none';
+
+            const prompt = promptInput.value.trim();
+            if (!prompt) {
+                showMessage('Please enter a prompt to generate code.', 'error');
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = 'Generate Code';
+                loadingSpinner.classList.add('hidden');
+                isGenerating = false;
+                return;
+            }
+
+            const chatHistory = [
+                { role: "user", parts: [{ text: `Generate a complete Java class named 'Point' based on the following requirements: ${prompt}. The output should only be the Java code, nothing else.` }] }
+            ];
+            const payload = { contents: chatHistory };
+
+            try {
+                const result = await callGeminiWithBackoff(payload);
+                const generatedText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (generatedText) {
+                    codeOutput.textContent = generatedText;
+                } else {
+                    showMessage('Failed to generate code. Please try a different prompt.', 'error');
+                }
+            } catch (error) {
+                console.error('An error occurred:', error);
+                showMessage('An unexpected error occurred. Please try again.', 'error');
+            } finally {
+                isGenerating = false;
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = 'Generate Code';
+                loadingSpinner.classList.add('hidden');
+            }
+        };
+
+        const copyToClipboard = () => {
+            const textToCopy = codeOutput.textContent;
+            if (!textToCopy) {
+                showMessage('No code to copy.', 'error');
+                return;
+            }
+
+            try {
+                const tempTextArea = document.createElement('textarea');
+                tempTextArea.value = textToCopy;
+                document.body.appendChild(tempTextArea);
+                tempTextArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(tempTextArea);
+                showMessage('Code copied to clipboard!', 'info');
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                showMessage('Failed to copy code. Please copy it manually.', 'error');
+            }
+        };
+
+        generateBtn.addEventListener('click', generateCode);
+        copyBtn.addEventListener('click', copyToClipboard);
+
+        promptInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                generateCode();
+            }
+        });
+    });
+</script>
+</body>
+</html>
