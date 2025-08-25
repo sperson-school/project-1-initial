@@ -1,4 +1,4 @@
-# 3D Geometry Classes Project
+# Project 1 - Let's Get to the Point (and Line and Cube)
 
 ## Project Objectives
 
