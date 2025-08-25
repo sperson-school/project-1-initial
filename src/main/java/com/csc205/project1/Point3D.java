@@ -1,5 +1,5 @@
 package com.csc205.project1;
 
-public record PointRecord() {
+public class Point3D {
 
 }
