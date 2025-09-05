@@ -247,9 +247,12 @@ public final class Point3D {
         double nz = z * cos + (ux*y - uy*x) * sin + uz * dot * (1 - cos);
 
         Point3D out = of(nx, ny, nz);
+        final double uxFinal = ux;
+        final double uyFinal = uy;
+        final double uzFinal = uz;
         LOG.log(Level.INFO, () -> String.format(
                 "rotateAroundAxis u=(%.6f,%.6f,%.6f), θ=%.6f rad: %s -> %s",
-                ux, uy, uz, radians, this, out));
+                uxFinal, uyFinal, uzFinal, radians, this, out));
         return out;
     }
 
